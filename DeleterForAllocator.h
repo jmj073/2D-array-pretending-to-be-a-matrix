@@ -17,7 +17,6 @@ struct DeleterForAllocator
             ptr[i].~VT();
         _Alloc allocator{};
         allocator.deallocate(ptr, elem_size);
-        std::cout << "deleted!\n";
     }
 };
 
