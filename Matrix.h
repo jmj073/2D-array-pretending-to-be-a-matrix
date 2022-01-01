@@ -1,8 +1,27 @@
 #pragma once
 
+#include <memory>
 #include <functional>
 
-#include "DeleterForAllocator.h"
+//#include "DeleterForAllocator.h"
+
+template<typename VT, typename _Alloc = std::allocator<VT>>
+struct DeleterForAllocator
+{
+    size_t elem_size;
+
+    DeleterForAllocator(size_t size)
+        : elem_size{ size } {}
+
+    void operator()(VT* ptr)
+    {
+        for (size_t i = elem_size; i-- > 0;)
+            ptr[i].~VT();
+        _Alloc allocator{};
+        allocator.deallocate(ptr, elem_size);
+    }
+};
+
 
 template <typename VT, typename _Alloc = std::allocator<VT>>
 class Matrix
@@ -13,6 +32,9 @@ public:
     using reference = VT&;
     using const_reference = const VT&;
     using size_type = size_t;
+
+    using iterator = VT*;
+    using const_iterator = const VT*;
 
 public:
     Matrix(size_type row, size_type col, const VT& def = VT());
@@ -42,12 +64,27 @@ public:
     }
     VT& at(size_type row_idx, size_type col_idx)
     {
+        //static_assert(size_type(-1) >= 0 || )
+
+        if (row_idx >= m_row_size || col_idx >= m_col_size)
+            throw std::out_of_range{ "Matrix: out of range" };
         return m_elem[row_idx * m_col_size + col_idx];
     }
     const VT& at(size_type row_idx, size_type col_idx) const
     {
+        if (row_idx >= m_row_size || col_idx >= m_col_size)
+            throw std::out_of_range{ "Matrix: out of range" };
         return m_elem[row_idx * m_col_size + col_idx];
     }
+
+    iterator begin() { return m_elem; }
+    iterator end() { return m_elem + size(); }
+    const_iterator begin() const { return m_elem; }
+    const_iterator end() const { return m_elem + size(); }
+    const_iterator cbegin() const { return m_elem; }
+    const_iterator cend() const { return m_elem + size(); }
+
+    bool reshape(size_t row_size, size_t col_size);
 
     Matrix& operator=(const Matrix& other);
     Matrix& operator=(Matrix&& other);
@@ -70,7 +107,7 @@ private:
 
 template <typename VT, typename _Alloc>
 Matrix<VT, _Alloc>::Matrix(size_type row_size, size_type col_size, const VT& def)
-    : m_row_size{ row_size }, m_col_size{ col_size }
+    : m_row_size{ row_size ? row_size : 1 }, m_col_size{ col_size ? col_size : 1 }
 {
     m_elem = m_allocator.allocate(size());
     std::uninitialized_fill(m_elem, m_elem + size(), def);
@@ -91,6 +128,28 @@ Matrix<VT, _Alloc>::Matrix(Matrix&& other) noexcept
     other.m_row_size = 0;
     other.m_col_size = 0;
     other.m_elem = nullptr;
+}
+
+template <typename VT, typename _Alloc>
+bool Matrix<VT, _Alloc>::reshape(size_t row_size, size_t col_size)
+{
+    if (!row_size) {
+        if (!col_size || size() % col_size) return false;
+        m_row_size = size() / col_size;
+        m_col_size = col_size;
+    }
+    else if (!col_size) {
+        if (size() % row_size) return false;
+        m_col_size = size() / row_size;
+        m_row_size = row_size;
+    }
+    else {
+        if (size() != row_size * col_size) return false;
+        m_row_size = row_size;
+        m_col_size = col_size;
+    }
+    
+    return true;
 }
 
 template <typename VT, typename _Alloc>
