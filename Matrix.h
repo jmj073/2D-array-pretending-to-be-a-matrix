@@ -173,15 +173,18 @@ template <typename VT, typename _Alloc>
 Matrix<VT, _Alloc>& Matrix<VT, _Alloc>::operator=(Matrix&& other)
 {
     VT* temp = other.m_elem;
+    auto temp_row = other.m_row_size;
+    auto temp_col = other.m_col_size;
+
     other.m_elem = nullptr;
-
-    destroy();
-
-    m_row_size = other.m_row_size;
-    m_col_size = other.m_col_size;
     other.m_row_size = 0;
     other.m_col_size = 0;
+
+    destroy();
+    
     m_elem = temp;
+    m_row_size = temp_row;
+    m_col_size = temp_col;
 
     return *this;
 }
